@@ -1,0 +1,56 @@
+# 利用SourceMap还原前端js代码
+
+##  `F12` --> 调试器
+
+会发现多一个webpack选项，因为存在`.js.map`文件，能够还原
+
+
+
+## 利用 `reverse-sourcemap`
+
+- 安装 `reverse-sourcemap`
+
+```bash
+npm install --global reverse-sourcemap
+```
+
+- 还原代码
+
+```bash
+reverse-sourcemap -v app.63304d959258070ef3be.js.map -o output
+```
+
+![image-20200929223206583](https://api.weixin.qq.com/cgi-bin/media/get?access_token=access_token&media_id=50hhnG9EgnkI9zaqBtapZEpEDiJmOqq9M1PivQ43IjSAehSOHImJ8Ed-qprR7cX8)
+
+## 利用 `restore-source-tree`（失败了）
+
+> https://github.com/alexkuz/restore-source-tree
+
+* 安装 `restore-source-tree`
+
+```bash
+git clone https://github.com/laysent/restore-source-tree.git 
+cd restore-source-tree
+npm i -g restore-source-tree
+```
+
+![image-20200928214529136](https://api.weixin.qq.com/cgi-bin/media/get?access_token=access_token&media_id=50hhnG9EgnkI9zaqBtapZFDbxvqUT4XUexFz0HYSQYdS2FKPkzOQBMwXc2RMI-eM)
+
+* 还原代码
+
+```bash
+restore-source-tree chunk-vendors.6b92c4bd.js.map
+```
+
+会自动保存到 `output` 下，不知道是不是有bug
+
+
+
+## 利用**shuji**（失败了）
+
+> https://github.com/paazmaya/shuji
+
+```bash
+npm install --global shuji
+```
+
