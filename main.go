@@ -103,8 +103,16 @@ func extractMdImage(filePath string) ([]string, []string) {
 	source := string(res)
 	result := mdImageRegex.FindAllStringSubmatch(source, -1)
 	for _,i := range result {
-		rawImageRes = append(rawImageRes, i[1])
-		absImageRes = append(absImageRes, basePath +"/" +i[1])
+		if !strings.HasPrefix(i[1], "http") { // 避免网络图片
+			if strings.Count(i[1], "%") > 5 {
+				uni, _ := url.QueryUnescape(i[1])
+				rawImageRes = append(rawImageRes, i[1])
+				absImageRes = append(absImageRes, basePath +"/" + uni)
+			} else {
+				rawImageRes = append(rawImageRes, i[1])
+				absImageRes = append(absImageRes, basePath +"/" + i[1])
+			}
+		}
 	}
 	return rawImageRes, absImageRes
 }
@@ -210,7 +218,7 @@ func main() {
 		semaphore.Add(1)
 		oneFileMain(accessToken, filePath)
 	} else if flag.Lookup("d").Value.String() != "" { // 文件夹
-		cmd := exec.Command("bash", "-c", fmt.Sprintf("find %s -name *.md", dirPath))
+		cmd := exec.Command("bash", "-c", fmt.Sprintf("find %s -name \\*.md", dirPath))
 		res, _ := cmd.CombinedOutput()
 		mdFiles := strings.Split(string(res), "\n")
 		if mdFiles[len(mdFiles)-1] == "" {	// 最后一个是""就删除
