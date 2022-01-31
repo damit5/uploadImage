@@ -89,6 +89,59 @@ func uploadTempImage(accessToken string, imgFilePath string) string {
 }
 
 /*
+上传到sm.ms
+ */
+func uploadImageToSmms(token string, imgFilePath string) string {
+	// 上传网址
+	target := "https://sm.ms/api/v2/upload"
+	// 要上传的文件
+	file, _ := os.Open(imgFilePath)
+	defer file.Close()
+	if file == nil {
+		return ""
+	}
+
+	// 设置body数据并写入缓冲区
+	bodyBuff := bytes.NewBufferString("") //bodyBuff := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(bodyBuff)
+	_ = bodyWriter.SetBoundary(fmt.Sprintf("-----------------------------%d", rand.Int()))
+	// 加入图片二进制
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, escapeQuotes("smfile"), escapeQuotes(filepath.Base(file.Name()))))
+	h.Set("Content-Type", "image/png")
+	part, _ := bodyWriter.CreatePart(h)
+	_, _ = io.Copy(part, file)
+
+	_ = bodyWriter.WriteField("format", "json")
+
+	// 自动补充boundary结尾
+	_ = bodyWriter.Close()
+
+	//创建请求
+	req, _ := http.NewRequest("POST", target, bodyBuff)
+	req.ContentLength = int64(bodyBuff.Len())
+	req.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0")
+	req.Header.Set("Authorization", token)
+
+	var imageUrl string
+
+	resp, err := client.Do(req)
+	if resp != nil || err == nil {
+		res, err := ioutil.ReadAll(resp.Body)
+
+		if err == nil {
+			imageUrl = jsoniter.Get(res, "data").Get("url").ToString()
+		} else {
+			imageUrl = ""
+		}
+	}
+
+	return imageUrl
+}
+
+
+/*
 提取markdown中的图片地址，返回两个结果
 1. 文件中的路径，比如 a.assets/aaa.png ==> 方便后面替换
 2. 处理后的路径，比如 /User/d4m1ts/markdown/a.assets/aaa.png ==> 方便后面上传
@@ -143,13 +196,18 @@ func replaceMdImage(filePath string, oldImages []string, newImages []string){
 /*
 对每一个文件单独进行处理，抽象到一个函数中
  */
-func oneFileMain(accessToken string, path string){
+func oneFileMain(accessToken string, path string, sign string){
 	// 解析文件中的图片
 	rawImageRes, absImageRes := extractMdImage(path)
 	var newImages []string
 	for num, ai := range absImageRes {
 		fmt.Println(fmt.Sprintf("共%d张图片，正在上传第 %d 张图片", len(absImageRes), num+1))
-		image := uploadTempImage(accessToken, ai)
+		var image string
+		if sign == "wx" {
+			image = uploadTempImage(accessToken, ai)
+		} else if sign == "sm" {
+			image = uploadImageToSmms(accessToken, ai)
+		}
 		newImages = append(newImages, image)
 	}
 	// 替换图片
@@ -164,7 +222,9 @@ func main() {
 	var proxyUrl string
 	var appid string
 	var secret string
+	var smtoken string
 	var t int
+	var accessToken string
 
 	flag.Usage = func() {
 		fmt.Println(`
@@ -184,6 +244,7 @@ func main() {
 	flag.StringVar(&appid, "appid", "", "微信公众号appid")
 	flag.StringVar(&secret, "secret", "", "微信公众号secret")
 	flag.IntVar(&t, "t", 3, "线程数量，仅会在多文件时使用")
+	flag.StringVar(&smtoken, "smtoken", "", "sm.ms的token")
 	flag.Parse()
 	if flag.NFlag() == 0 { // 使用的命令行参数个数
 		flag.Usage()
@@ -210,13 +271,19 @@ func main() {
 		}
 	}
 
-	// 获取token，可以多次用，所以第一次获取即可
-	accessToken := getAccessToken(appid, secret)
+	// 获取wx token，可以多次用，所以第一次获取即可
+	if flag.Lookup("appid").Value.String() != "" && flag.Lookup("secret").Value.String() != ""{
+		accessToken = getAccessToken(appid, secret)
+	}
 	semaphore = gsema.NewSemaphore(t)
 
 	if flag.Lookup("f").Value.String() != "" { // 单个markdown
 		semaphore.Add(1)
-		oneFileMain(accessToken, filePath)
+		if flag.Lookup("appid").Value.String() != "" && flag.Lookup("secret").Value.String() != "" {
+			oneFileMain(accessToken, filePath, "wx")
+		} else {
+			oneFileMain(smtoken, filePath, "sm")
+		}
 	} else if flag.Lookup("d").Value.String() != "" { // 文件夹
 		cmd := exec.Command("bash", "-c", fmt.Sprintf("find %s -name \\*.md", dirPath))
 		res, _ := cmd.CombinedOutput()
@@ -226,7 +293,11 @@ func main() {
 		}
 		for _,fp := range mdFiles {
 			semaphore.Add(1)
-			go oneFileMain(accessToken, fp)
+			if flag.Lookup("appid").Value.String() != "" && flag.Lookup("secret").Value.String() != "" {
+				go oneFileMain(accessToken, fp, "wx")
+			} else {
+				go oneFileMain(smtoken, fp, "sm")
+			}
 		}
 	} else {
 		flag.Usage()

@@ -9,8 +9,16 @@
 效果如图：
 
 ```
->>> uploadImage
+   uploadImage -h
+
+       ____ __           _____
+  ____/ / // / ____ ___ <  / /______
+ / __  / // /_/ __  __ \/ / __/ ___/
+/ /_/ /__  __/ / / / / / / /_(__  )
+\__,_/  /_/ /_/ /_/ /_/_/\__/____/
+
 markdown图片自动上传到图床
+
 Usage of uploadImage:
   -appid string
     	微信公众号appid
@@ -24,6 +32,8 @@ Usage of uploadImage:
     	使用代理，如socks5://127.0.0.1:1080
   -secret string
     	微信公众号secret
+  -smtoken string
+    	sm.ms的token
   -t int
     	线程数量，仅会在多文件时使用 (default 3)
 ```
@@ -31,6 +41,12 @@ Usage of uploadImage:
 
 
 ![image-20220130234617141](README.assets/image-20220130234617141.png)
+
+
+
+批量上传测试：
+
+![image-20220131113440064](README.assets/image-20220131113440064.png)
 
 
 
@@ -43,15 +59,17 @@ Usage of uploadImage:
 ```
 .
 ├── README.assets
-│   └── image-20220130234617141.png
+│   ├── image-20220130234617141.png
+│   └── image-20220131113440064.png
 ├── README.md
+├── build.sh
 ├── go.mod
 ├── go.sum
 ├── main.go
 ├── release
 │   ├── uploadImage.exe
-│   ├── uploadImage_darwin
-│   └── uploadImage_linux_amd
+│   ├── uploadImage_amd_linux
+│   └── uploadImage_darwin
 └── test
     ├── 01.利用SourceMap还原前端js代码.md
     ├── 01.利用SourceMap还原前端js代码.md.txt
@@ -60,7 +78,7 @@ Usage of uploadImage:
         └── image-20200929223206583.png
 ```
 
-
+## 安装
 
 支持`go get`安装
 
@@ -68,3 +86,8 @@ Usage of uploadImage:
 go get github.com/damit5/uploadImage
 ```
 
+也可以用`release`目录下已编译好的
+
+## 更新
+
+- [x] 2022/01/31: 添加支持sm.ms
