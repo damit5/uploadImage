@@ -91,3 +91,4 @@ go get github.com/damit5/uploadImage
 ## 更新
 
 - [x] 2022/01/31: 添加支持sm.ms
+- [x] 2022/02/07: 修复几个bug；注意：sm.ms一分钟最多上传20张图片，一小时最多上传100张图
