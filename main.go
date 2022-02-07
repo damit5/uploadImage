@@ -97,7 +97,8 @@ func uploadImageToSmms(token string, imgFilePath string) string {
 	// 要上传的文件
 	file, _ := os.Open(imgFilePath)
 	defer file.Close()
-	if file == nil {
+	if file == nil || strings.HasSuffix(imgFilePath, "/"){
+		fmt.Println(fmt.Sprintf("%s is nil", imgFilePath))
 		return ""
 	}
 
@@ -126,17 +127,31 @@ func uploadImageToSmms(token string, imgFilePath string) string {
 
 	var imageUrl string
 
-	resp, err := client.Do(req)
-	if resp != nil || err == nil {
-		res, err := ioutil.ReadAll(resp.Body)
+	resp, err_client := client.Do(req)
+	if resp != nil || err_client == nil {
+		res, err_ioutil := ioutil.ReadAll(resp.Body)
 
-		if err == nil {
-			imageUrl = jsoniter.Get(res, "data").Get("url").ToString()
+		if err_ioutil == nil {
+			//fmt.Println(string(res))
+			if jsoniter.Get(res, "code").ToString() == "flood" {
+				time.Sleep(time.Second * 60)
+				return uploadImageToSmms(token, imgFilePath)
+			} else if jsoniter.Get(res, "data").Get("url").ToString() != "" {
+				imageUrl = jsoniter.Get(res, "data").Get("url").ToString()
+			} else if jsoniter.Get(res, "images").ToString() != "" {
+				imageUrl = jsoniter.Get(res, "images").ToString()
+			}
 		} else {
+			fmt.Println(string(res))
 			imageUrl = ""
 		}
+	} else {
+		fmt.Println(err_client)
 	}
 
+	if imageUrl == "" {
+		fmt.Println(imgFilePath + "\timageUrl: " + imageUrl)
+	}
 	return imageUrl
 }
 
@@ -156,7 +171,7 @@ func extractMdImage(filePath string) ([]string, []string) {
 	source := string(res)
 	result := mdImageRegex.FindAllStringSubmatch(source, -1)
 	for _,i := range result {
-		if !strings.HasPrefix(i[1], "http") { // 避免网络图片
+		if !strings.HasPrefix(i[1], "http") && i[1] != ""{ // 避免网络图片和空路径图片
 			if strings.Count(i[1], "%") > 5 {
 				uni, _ := url.QueryUnescape(i[1])
 				rawImageRes = append(rawImageRes, i[1])
@@ -251,23 +266,24 @@ func main() {
 		os.Exit(0)
 	}
 	// 初始化Client
+	timeout := time.Second * 60
 	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if proxyUrl != "" {
 		proxy,_ := url.Parse(proxyUrl)
 		netTransport := &http.Transport{
 			Proxy:                 http.ProxyURL(proxy),
-			MaxIdleConnsPerHost:   10,
-			ResponseHeaderTimeout: time.Second * time.Duration(5),
+			MaxIdleConnsPerHost:   60,
+			ResponseHeaderTimeout: time.Second * time.Duration(60),
 		}
 		client = http.Client{
 			Transport: netTransport,
 			Jar:     jar,
-			Timeout: time.Second * 10,
+			Timeout: timeout,
 		}
 	} else {
 		client = http.Client{
 			Jar:     jar,
-			Timeout: time.Second * 10,
+			Timeout: timeout,
 		}
 	}
 
