@@ -244,6 +244,11 @@ func replaceMdImage(filePath string, oldImages []string, newImages []string){
 		res, _ := ioutil.ReadFile(filePath)
 		source := string(res)
 		for i:=0;i<len(oldImages);i++ {
+			// 避免速度太快被封禁了，然后全部替换成了空了
+			if newImages[i] == "" {
+				fmt.Printf("上传 '%s' 时疑似IP被封禁，%s 图片为空\n", filePath, oldImages[i])
+				continue
+			}
 			source = strings.Replace(source, oldImages[i], newImages[i], -1)
 		}
 		if isCover {
