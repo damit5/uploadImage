@@ -2,14 +2,10 @@
 
 
 
-所以写了个自动解析markdown图片并上传内容到微信公众号图床的
-
-
-
 效果如图：
 
 ```
-   uploadImage -h
+   uploadImage
 
        ____ __           _____
   ____/ / // / ____ ___ <  / /______
@@ -17,11 +13,13 @@
 / /_/ /__  __/ / / / / / / /_(__  )
 \__,_/  /_/ /_/ /_/ /_/_/\__/____/
 
+Usage: uploadImage -f xxx.md -wxsecret xxx -wxappid xxx
+Usage: uploadImage -f xxx.md -smtoken xxx
+Usage: uploadImage -f xxx.md -yuqueurl http://xxx -yuquecookie xxx
+
 markdown图片自动上传到图床
 
 Usage of uploadImage:
-  -appid string
-    	微信公众号appid
   -cover
     	是否覆盖源文件，默认不覆盖
   -d string
@@ -30,12 +28,18 @@ Usage of uploadImage:
     	单个markdown文件路径
   -p string
     	使用代理，如socks5://127.0.0.1:1080
-  -secret string
-    	微信公众号secret
   -smtoken string
     	sm.ms的token
   -t int
     	线程数量，仅会在多文件时使用 (default 3)
+  -wxappid string
+    	微信公众号appid
+  -wxsecret string
+    	微信公众号secret
+  -yuquecookie string
+    	语雀上传的Cookie
+  -yuqueurl string
+    	语雀上传的URL
 ```
 
 
@@ -92,3 +96,4 @@ go get github.com/damit5/uploadImage
 
 - [x] 2022/01/31: 添加支持sm.ms
 - [x] 2022/02/07: 修复几个bug；注意：sm.ms一分钟最多上传20张图片，一小时最多上传100张图
+- [x] 2022/03/11: 增加yuque支持，手动在web上传图片抓包，然后拿到上传的URL和cookie即可

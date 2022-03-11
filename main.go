@@ -155,6 +155,57 @@ func uploadImageToSmms(token string, imgFilePath string) string {
 	return imageUrl
 }
 
+/*
+上传图片到语雀
+uploadUrl: 上传的URL，https://www.yuque.com/api/upload/attach?attachable_type=Doc&attachable_id=aaaaa&type=image&ctoken=xxxxx
+
+ */
+func uploadImagetoYuque(uploadUrl string, cookie string, imgFilePath string) string {
+	// 要上传的文件
+	file, _ := os.Open(imgFilePath)
+	defer file.Close()
+	if file == nil || strings.HasSuffix(imgFilePath, "/"){
+		fmt.Println(fmt.Sprintf("%s is nil", imgFilePath))
+		return ""
+	}
+
+	// 设置body数据并写入缓冲区
+	bodyBuff := bytes.NewBufferString("") //bodyBuff := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(bodyBuff)
+	_ = bodyWriter.SetBoundary(fmt.Sprintf("-----------------------------%d", rand.Int()))
+	// 加入图片二进制
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, escapeQuotes("file"), escapeQuotes(filepath.Base(file.Name()))))
+	h.Set("Content-Type", "image/png")
+	part, _ := bodyWriter.CreatePart(h)
+	_, _ = io.Copy(part, file)
+
+	// 自动补充boundary结尾
+	_ = bodyWriter.Close()
+
+	req, _ := http.NewRequest("POST", uploadUrl, bodyBuff)
+	req.ContentLength = int64(bodyBuff.Len())
+	req.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0")
+	req.Header.Set("Cookie", cookie)
+	req.Header.Set("Referer", "https://www.yuque.com/da-labs/secnotes/syhdn5/edit?toc_node_uuid=oJ_aaaaaaaaaaaaa")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}  else {
+		res, resperr := ioutil.ReadAll(resp.Body)
+		if resperr != nil {
+			fmt.Println(resperr)
+		} else {
+			imageUrl := jsoniter.Get(res, "data").Get("url").ToString()
+			return imageUrl
+		}
+
+	}
+
+	return ""
+}
 
 /*
 提取markdown中的图片地址，返回两个结果
@@ -211,7 +262,7 @@ func replaceMdImage(filePath string, oldImages []string, newImages []string){
 /*
 对每一个文件单独进行处理，抽象到一个函数中
  */
-func oneFileMain(accessToken string, path string, sign string){
+func oneFileMain(path string, sign string, tokens ...string){
 	// 解析文件中的图片
 	rawImageRes, absImageRes := extractMdImage(path)
 	var newImages []string
@@ -219,9 +270,11 @@ func oneFileMain(accessToken string, path string, sign string){
 		fmt.Println(fmt.Sprintf("共%d张图片，正在上传第 %d 张图片", len(absImageRes), num+1))
 		var image string
 		if sign == "wx" {
-			image = uploadTempImage(accessToken, ai)
+			image = uploadTempImage(tokens[0], ai)
 		} else if sign == "sm" {
-			image = uploadImageToSmms(accessToken, ai)
+			image = uploadImageToSmms(tokens[0], ai)
+		} else if sign == "yq" {
+			image = uploadImagetoYuque(tokens[0], tokens[1], ai)
 		}
 		newImages = append(newImages, image)
 	}
@@ -235,11 +288,13 @@ func main() {
 	var filePath string
 	var dirPath string
 	var proxyUrl string
-	var appid string
-	var secret string
+	var wxappid string
+	var wxsecret string
 	var smtoken string
 	var t int
 	var accessToken string
+	var yuqueUrl string
+	var yuqueCookie string
 
 	flag.Usage = func() {
 		fmt.Println(`
@@ -249,6 +304,9 @@ func main() {
 / /_/ /__  __/ / / / / / / /_(__  )
 \__,_/  /_/ /_/ /_/ /_/_/\__/____/
 			`)
+		fmt.Println("Usage: uploadImage -f xxx.md -wxsecret xxx -wxappid xxx")
+		fmt.Println("Usage: uploadImage -f xxx.md -smtoken xxx")
+		fmt.Println("Usage: uploadImage -f xxx.md -yuqueurl http://xxx -yuquecookie xxx\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "markdown图片自动上传到图床\n\nUsage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
@@ -256,10 +314,12 @@ func main() {
 	flag.StringVar(&dirPath, "d", "", "整个markdown文件夹路径")
 	flag.BoolVar(&isCover, "cover", false, "是否覆盖源文件，默认不覆盖")
 	flag.StringVar(&proxyUrl, "p", "", "使用代理，如socks5://127.0.0.1:1080")
-	flag.StringVar(&appid, "appid", "", "微信公众号appid")
-	flag.StringVar(&secret, "secret", "", "微信公众号secret")
+	flag.StringVar(&wxappid, "wxappid", "", "微信公众号appid")
+	flag.StringVar(&wxsecret, "wxsecret", "", "微信公众号secret")
 	flag.IntVar(&t, "t", 3, "线程数量，仅会在多文件时使用")
 	flag.StringVar(&smtoken, "smtoken", "", "sm.ms的token")
+	flag.StringVar(&yuqueUrl, "yuqueurl", "", "语雀上传的URL")
+	flag.StringVar(&yuqueCookie, "yuquecookie", "", "语雀上传的Cookie")
 	flag.Parse()
 	if flag.NFlag() == 0 { // 使用的命令行参数个数
 		flag.Usage()
@@ -288,17 +348,19 @@ func main() {
 	}
 
 	// 获取wx token，可以多次用，所以第一次获取即可
-	if flag.Lookup("appid").Value.String() != "" && flag.Lookup("secret").Value.String() != ""{
-		accessToken = getAccessToken(appid, secret)
+	if flag.Lookup("wxappid").Value.String() != "" && flag.Lookup("wxsecret").Value.String() != ""{
+		accessToken = getAccessToken(wxappid, wxsecret)
 	}
 	semaphore = gsema.NewSemaphore(t)
 
-	if flag.Lookup("f").Value.String() != "" { // 单个markdown
+	if flag.Lookup("f").Value.String() != "" { // 单个markdown上传
 		semaphore.Add(1)
-		if flag.Lookup("appid").Value.String() != "" && flag.Lookup("secret").Value.String() != "" {
-			oneFileMain(accessToken, filePath, "wx")
-		} else {
-			oneFileMain(smtoken, filePath, "sm")
+		if flag.Lookup("wxappid").Value.String() != "" && flag.Lookup("wxsecret").Value.String() != "" {
+			oneFileMain(filePath, "wx", accessToken)
+		} else if flag.Lookup("smtoken").Value.String() != "" {
+			oneFileMain(filePath, "sm", smtoken)
+		} else if flag.Lookup("yuqueurl").Value.String() != "" && flag.Lookup("yuquecookie").Value.String() != "" {
+			oneFileMain(filePath, "yq", yuqueUrl, yuqueCookie)
 		}
 	} else if flag.Lookup("d").Value.String() != "" { // 文件夹
 		cmd := exec.Command("bash", "-c", fmt.Sprintf("find %s -name \\*.md", dirPath))
@@ -309,10 +371,12 @@ func main() {
 		}
 		for _,fp := range mdFiles {
 			semaphore.Add(1)
-			if flag.Lookup("appid").Value.String() != "" && flag.Lookup("secret").Value.String() != "" {
-				go oneFileMain(accessToken, fp, "wx")
-			} else {
-				go oneFileMain(smtoken, fp, "sm")
+			if flag.Lookup("wxappid").Value.String() != "" && flag.Lookup("wxsecret").Value.String() != "" {
+				go oneFileMain(fp, "wx", accessToken)
+			} else if flag.Lookup("smtoken").Value.String() != "" {
+				go oneFileMain(fp, "sm", smtoken)
+			} else if flag.Lookup("yuqueUrl").Value.String() != "" && flag.Lookup("yuqueCookie").Value.String() != "" {
+				go oneFileMain(fp, "yq", yuqueUrl, yuqueCookie)
 			}
 		}
 	} else {
