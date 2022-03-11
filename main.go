@@ -375,7 +375,7 @@ func main() {
 				go oneFileMain(fp, "wx", accessToken)
 			} else if flag.Lookup("smtoken").Value.String() != "" {
 				go oneFileMain(fp, "sm", smtoken)
-			} else if flag.Lookup("yuqueUrl").Value.String() != "" && flag.Lookup("yuqueCookie").Value.String() != "" {
+			} else if flag.Lookup("yuqueurl").Value.String() != "" && flag.Lookup("yuquecookie").Value.String() != "" {
 				go oneFileMain(fp, "yq", yuqueUrl, yuqueCookie)
 			}
 		}
